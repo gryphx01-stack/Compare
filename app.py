@@ -64,7 +64,7 @@ with st.sidebar:
     
     # On vérifie si la clé est cachée dans les secrets Streamlit
     if "GEMINI_API_KEY" in st.secrets:
-        api_key = st.secrets["AIzaSyC9jS-Ovl1-ETWLDe0iNKOiHHcVl-4KCyY"]
+        api_key = st.secrets["GEMINI_API_KEY"]
         st.success("✅ Clé API chargée automatiquement")
     else:
         # Sinon, on laisse le champ manuel (au cas où)
@@ -150,3 +150,4 @@ if ref_file and comp_file and api_key:
 elif not api_key:
 
     st.warning("Veuillez entrer une clé API Gemini dans le menu de gauche pour commencer.")
+
