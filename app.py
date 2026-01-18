@@ -61,9 +61,15 @@ st.markdown("Solution d'audit automatisée par IA pour la validation de factures
 # Barre latérale pour la configuration
 with st.sidebar:
     st.header("⚙️ Configuration")
-    # Pour la démo client, tu peux soit lui demander sa clé, soit mettre la tienne en dur dans le code (attention à la sécurité)
-    # ou utiliser les "Secrets" de Streamlit Cloud. Ici, on demande la clé pour faire simple.
-    api_key = st.text_input("Clé API Gemini", type="password", help="Nécessaire pour l'analyse")
+    
+    # On vérifie si la clé est cachée dans les secrets Streamlit
+    if "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["AIzaSyC9jS-Ovl1-ETWLDe0iNKOiHHcVl-4KCyY"]
+        st.success("✅ Clé API chargée automatiquement")
+    else:
+        # Sinon, on laisse le champ manuel (au cas où)
+        api_key = st.text_input("Clé API Gemini", type="password", help="Nécessaire pour l'analyse")
+        
     st.info("Cette application utilise le modèle Gemini 1.5 Flash pour une analyse rapide et multimodale.")
 
 # Zone d'Upload
@@ -142,4 +148,5 @@ if ref_file and comp_file and api_key:
                 except Exception as e:
                     st.error(f"Une erreur est survenue : {str(e)}")
 elif not api_key:
+
     st.warning("Veuillez entrer une clé API Gemini dans le menu de gauche pour commencer.")
