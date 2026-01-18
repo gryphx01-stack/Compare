@@ -95,7 +95,7 @@ if ref_file and comp_file and api_key:
         if not configure_gemini(api_key):
             st.error("Clé API invalide")
         else:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-1.5-pro")
             
             with st.spinner('L\'IA analyse les documents pixel par pixel...'):
                 try:
@@ -150,4 +150,5 @@ if ref_file and comp_file and api_key:
 elif not api_key:
 
     st.warning("Veuillez entrer une clé API Gemini dans le menu de gauche pour commencer.")
+
 
