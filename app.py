@@ -34,7 +34,7 @@ with st.sidebar:
 def analyze(key, img1, img2):
     genai.configure(api_key=key)
     # On utilise le modèle Flash 1.5
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-pro")
     
     prompt = "Agis comme un expert comptable. Compare ces deux documents visuellement. Liste les différences (Prix, Dates, Totaux). Sois précis."
     
@@ -66,3 +66,4 @@ if st.button("Lancer l'analyse"):
                 
             except Exception as e:
                 st.error(f"Erreur : {e}")
+
