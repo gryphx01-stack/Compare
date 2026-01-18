@@ -52,11 +52,26 @@ with st.sidebar:
         st.error("❌ Clé manquante")
 
 # --- 4. ANALYSE ---
+# --- 4. ANALYSE ---
 def analyze(key, model_name, file1, file2):
     genai.configure(api_key=key)
     model = genai.GenerativeModel(model_name)
     
-    prompt = "Expert comptable : Compare ces deux images. Liste les différences (Prix, Dates, Totaux). Sois concis."
+    # NOUVEAU PROMPT : On lui demande de tout vérifier
+    prompt = """
+    Agis comme un inspecteur de la fraude. Compare le Document 1 (Référence) et le Document 2.
+    
+    Ta mission est de trouver TOUTES les différences, même les plus petites.
+    NE TE LIMITE PAS aux colonnes principales. Vérifie aussi :
+    - Les adresses, les logos, les en-têtes et pieds de page.
+    - Les références produits (codes), les descriptions textuelles.
+    - Les mentions légales, les numéros de téléphone, les SIRET.
+    - La mise en page ou les fautes de frappe.
+    
+    Format de réponse attendu :
+    - Liste chaque différence trouvée avec des tirets.
+    - Pour chaque erreur, écris : "Vu dans Doc 1 : [valeur] / Vu dans Doc 2 : [valeur]".
+    """
     
     response = model.generate_content([prompt, file1, file2])
     return response.text
@@ -85,3 +100,4 @@ if st.button("Lancer l'analyse", type="primary"):
             except Exception as e:
                 st.error(f"Erreur avec ce modèle : {e}")
                 st.markdown("👉 **Solution :** Changez de modèle dans le menu de gauche et réessayez !")
+
