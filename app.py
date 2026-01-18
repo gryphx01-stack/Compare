@@ -3,83 +3,59 @@ import google.generativeai as genai
 from PIL import Image
 import json
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(layout="wide", page_title="Audit IA - Comparateur (Version V1)")
+st.set_page_config(layout="wide", page_title="Audit IA 2.0")
 
-# --- CONFIGURATION API ---
-# On tente de récupérer la clé, sinon on affiche un champ
-api_key = None
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
+# --- CHARGEMENT DE LA CLÉ ---
+# On essaie de lire la clé secrète, sinon on laisse vide
+api_key = st.secrets.get("GEMINI_API_KEY", None)
 
-# --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Configuration")
+    st.header("Paramètres")
     if api_key:
-        st.success("✅ Clé API chargée")
+        st.success("✅ Clé API connectée")
     else:
-        api_key = st.text_input("Clé API Gemini", type="password")
-    
-    st.info("Mode de compatibilité : Utilise le modèle standard Gemini Pro Vision.")
+        api_key = st.text_input("Clé API", type="password")
+        st.warning("Entrez votre clé pour commencer")
 
-    # Bouton de secours pour vider le cache manuellement si besoin
-    if st.button("Vider le cache de l'app"):
-        st.cache_data.clear()
-
-# --- FONCTIONS ---
-def analyze_documents_v1(key, file_ref, file_comp):
+# --- FONCTION D'ANALYSE ---
+def analyze(key, img1, img2):
+    # Configuration avec la clé
     genai.configure(api_key=key)
-    # On utilise le modèle V1 qui passe partout
-    model = genai.GenerativeModel("gemini-pro-vision")
     
-    prompt = """
-    Agis comme un expert comptable. Compare ces deux images de documents.
-    Liste les différences de prix, dates, et totaux.
-    Sois factuel. Si tout est identique, dis-le.
-    """
+    # On utilise le modèle Flash (rapide et gratuit)
+    model = genai.GenerativeModel("gemini-1.5-flash")
     
-    # Le modèle V1 prend une liste [prompt, image1, image2]
-    response = model.generate_content([prompt, file_ref, file_comp])
+    prompt = "Compare ces deux images. Liste les différences de prix, dates et totaux sous forme de liste à puces."
+    
+    # Envoi des 2 images et du texte
+    response = model.generate_content([prompt, img1, img2])
     return response.text
 
-# --- INTERFACE PRINCIPALE ---
-st.title("⚖️ Comparateur de Documents (Mode Compatible)")
+# --- INTERFACE ---
+st.title("⚡ Comparateur Rapide")
 
 col1, col2 = st.columns(2)
-img_ref = None
-img_comp = None
+file1 = col1.file_uploader("Document 1", type=["jpg", "png"])
+file2 = col2.file_uploader("Document 2", type=["jpg", "png"])
 
-with col1:
-    st.subheader("1. Référence")
-    ref_file = st.file_uploader("Document 1", type=['png', 'jpg', 'jpeg'], key="v1_ref")
-    if ref_file:
-        img_ref = Image.open(ref_file)
-        st.image(img_ref, use_container_width=True)
-
-with col2:
-    st.subheader("2. Comparaison")
-    comp_file = st.file_uploader("Document 2", type=['png', 'jpg', 'jpeg'], key="v1_comp")
-    if comp_file:
-        img_comp = Image.open(comp_file)
-        st.image(img_comp, use_container_width=True)
-
-# BOUTON D'ACTION
-if st.button("LANCER L'ANALYSE", type="primary"):
+if st.button("Lancer l'analyse"):
     if not api_key:
         st.error("Il manque la clé API !")
-    elif not img_ref or not img_comp:
-        st.warning("Il faut deux images pour comparer.")
+    elif not file1 or not file2:
+        st.error("Il manque un document.")
     else:
-        with st.spinner("Analyse en cours avec le modèle standard..."):
+        with st.spinner("Analyse IA en cours..."):
             try:
-                # Appel direct sans JSON complexe (plus robuste pour la V1)
-                resultat = analyze_documents_v1(api_key, img_ref, img_comp)
+                # Ouverture des images
+                img1 = Image.open(file1)
+                img2 = Image.open(file2)
                 
-                st.divider()
-                st.subheader("📝 Rapport d'analyse")
+                # Appel à l'IA
+                resultat = analyze(api_key, img1, img2)
+                
+                # Résultat
+                st.success("Analyse terminée !")
                 st.markdown(resultat)
-                st.success("Analyse terminée.")
                 
             except Exception as e:
-                st.error(f"Erreur : {str(e)}")
-                st.markdown("Astuce : Vérifiez que votre clé API est bien valide.")
+                st.error(f"Une erreur technique est survenue : {e}")
