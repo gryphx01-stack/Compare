@@ -51,26 +51,32 @@ with st.sidebar:
     else:
         st.error("❌ Clé manquante")
 
-# --- 4. ANALYSE ---
-# --- 4. ANALYSE ---
+# --- 4. ANALYSE (Version "Œil de Lynx") ---
 def analyze(key, model_name, file1, file2):
     genai.configure(api_key=key)
     model = genai.GenerativeModel(model_name)
     
-    # NOUVEAU PROMPT : On lui demande de tout vérifier
+    # On force l'IA à être ultra-méticuleuse
     prompt = """
-    Agis comme un inspecteur de la fraude. Compare le Document 1 (Référence) et le Document 2.
+    Tu es un correcteur professionnel et un expert en comparaison de données.
     
-    Ta mission est de trouver TOUTES les différences, même les plus petites.
-    NE TE LIMITE PAS aux colonnes principales. Vérifie aussi :
-    - Les adresses, les logos, les en-têtes et pieds de page.
-    - Les références produits (codes), les descriptions textuelles.
-    - Les mentions légales, les numéros de téléphone, les SIRET.
-    - La mise en page ou les fautes de frappe.
+    TA MISSION :
+    Compare le Document 1 (gauche/haut) et le Document 2 (droite/bas) LIGNE PAR LIGNE.
+    Tu dois relever TOUTES les différences textuelles, même minimes.
     
-    Format de réponse attendu :
-    - Liste chaque différence trouvée avec des tirets.
-    - Pour chaque erreur, écris : "Vu dans Doc 1 : [valeur] / Vu dans Doc 2 : [valeur]".
+    CE QUE TU DOIS CHERCHER SPÉCIFIQUEMENT :
+    1. Mots ajoutés ou supprimés (ex: "les photos" vs "les nouvelles photos").
+    2. Fautes de frappe ou changements d'orthographe (ex: "Beaune" vs "Baume les Dames").
+    3. Changements de ponctuation (ex: "vous" vs "nous !!").
+    4. Différences de dates ou de noms propres.
+    
+    FORMAT DE RÉPONSE OBLIGATOIRE :
+    Présente le résultat sous forme d'un tableau Markdown avec 3 colonnes :
+    | Localisation (Ligne approx) | Texte dans Doc 1 (Original) | Texte dans Doc 2 (Modifié) |
+    |-----------------------------|-----------------------------|----------------------------|
+    | ...                         | ...                         | ...                        |
+
+    Si une ligne est identique, ignore-la. Concentre-toi uniquement sur les différences.
     """
     
     response = model.generate_content([prompt, file1, file2])
@@ -100,4 +106,5 @@ if st.button("Lancer l'analyse", type="primary"):
             except Exception as e:
                 st.error(f"Erreur avec ce modèle : {e}")
                 st.markdown("👉 **Solution :** Changez de modèle dans le menu de gauche et réessayez !")
+
 
