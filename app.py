@@ -6,6 +6,31 @@ import fitz  # PyMuPDF
 import docx
 import io
 
+# --- SÉCURITÉ : MOT DE PASSE ---
+def check_password():
+    """Renvoie True si l'utilisateur a le bon mot de passe."""
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
+
+    if st.session_state.password_correct:
+        return True
+
+    # Champ de saisie
+    pwd = st.text_input("Veuillez entrer le mot de passe d'accès :", type="password")
+    
+    # DÉFINISSEZ VOTRE MOT DE PASSE ICI (ex: "client2024")
+    if st.button("Se connecter"):
+        if pwd == "xA?VU*(B*sp3:j0A":  # <--- Changez ceci !
+            st.session_state.password_correct = True
+            st.rerun()
+        else:
+            st.error("Mot de passe incorrect")
+    return False
+
+if not check_password():
+    st.stop() # On arrête tout si pas de mot de passe
+
+
 # --- CONFIGURATION DU MODÈLE ---
 # On fixe le modèle exact que vous avez repéré
 MODEL_ID = "models/gemini-3-flash-preview"
@@ -123,3 +148,4 @@ if st.button("Lancer l'audit de conformité", type="primary", use_container_widt
         except Exception as e:
             st.error(f"Erreur technique : {str(e)}")
             st.error("Le modèle Gemini 3 semble indisponible ou surchargé. Essayez de recharger la page.")
+
