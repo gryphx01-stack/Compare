@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import pandas as pd
-import fitz  # C'est PyMuPDF (pour lire les PDF)
+import fitz  # PyMuPDF pour les PDF
 import docx  # Pour Word
 import io
 
@@ -11,153 +11,154 @@ st.set_page_config(layout="wide", page_title="Auditeur Universel")
 # --- 1. CONFIGURATION ---
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
-# --- 2. FONCTIONS DE CHARGEMENT INTELLIGENT ---
+# --- 2. FONCTION DE RÉCUPÉRATION DES MODÈLES (Le retour !) ---
+def get_my_models(key):
+    """Récupère la liste réelle des modèles disponibles pour votre clé"""
+    try:
+        genai.configure(api_key=key)
+        all_models = list(genai.list_models())
+        # On ne garde que ceux qui sont 'generateContent'
+        valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
+        
+        # Petit tri pour mettre les 'flash' et 'pro' en premier
+        valid_models.sort(key=lambda x: ('flash' not in x, 'pro' not in x))
+        
+        if not valid_models:
+            return ["models/gemini-1.5-flash"] # Fallback
+        return valid_models
+    except Exception as e:
+        return ["Erreur: Clé invalide ou quota dépassé"]
+
+# --- 3. FONCTIONS DE TRAITEMENT DE FICHIERS ---
 def pdf_to_image(uploaded_file):
-    """Convertit la première page d'un PDF en image pour l'IA"""
+    """Convertit la page 1 du PDF en image"""
     doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-    page = doc.load_page(0)  # On prend la page 1
-    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # Zoom x2 pour la qualité
-    img_data = pix.tobytes("png")
-    return Image.open(io.BytesIO(img_data))
+    page = doc.load_page(0)
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+    return Image.open(io.BytesIO(pix.tobytes("png")))
 
 def read_excel(uploaded_file):
-    """Transforme un Excel en texte lisible"""
+    """Lit Excel en mode texte"""
     df = pd.read_excel(uploaded_file)
     return df.to_markdown(index=False)
 
 def read_word(uploaded_file):
-    """Lit le texte d'un fichier Word"""
+    """Lit Word en mode texte"""
     doc = docx.Document(uploaded_file)
-    full_text = []
-    for para in doc.paragraphs:
-        if para.text.strip():
-            full_text.append(para.text)
-    return "\n".join(full_text)
+    return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
 def process_file(uploaded_file):
-    """Chef d'orchestre : décide comment traiter le fichier selon son extension"""
-    if uploaded_file is None:
-        return None, None, None
-
-    file_type = uploaded_file.name.split('.')[-1].lower()
+    """Détecte le format et prépare les données pour l'IA"""
+    if not uploaded_file: return None, None, None
     
-    # CAS 1 : IMAGES (JPG, PNG)
-    if file_type in ['jpg', 'jpeg', 'png']:
+    ext = uploaded_file.name.split('.')[-1].lower()
+    
+    # IMAGE
+    if ext in ['jpg', 'jpeg', 'png']:
         img = Image.open(uploaded_file)
-        return img, img, "Image" # (Data pour IA, Preview pour l'humain, Type)
-    
-    # CAS 2 : PDF (On le transforme en image pour le visuel)
-    elif file_type == 'pdf':
+        return img, img, "Image"
+        
+    # PDF
+    elif ext == 'pdf':
         uploaded_file.seek(0)
         img = pdf_to_image(uploaded_file)
-        return img, img, "PDF (Page 1 convertie)"
-    
-    # CAS 3 : EXCEL (On extrait le texte)
-    elif file_type in ['xlsx', 'xls']:
-        uploaded_file.seek(0)
-        text_data = read_excel(uploaded_file)
-        # Pour la preview, on montre un bout du tableau
-        uploaded_file.seek(0)
-        preview_df = pd.read_excel(uploaded_file)
-        return text_data, preview_df, "Excel"
+        return img, img, "PDF (Page 1)"
         
-    # CAS 4 : WORD (On extrait le texte)
-    elif file_type in ['docx', 'doc']:
+    # EXCEL
+    elif ext in ['xlsx', 'xls']:
         uploaded_file.seek(0)
-        text_data = read_word(uploaded_file)
-        return text_data, text_data, "Word"
+        txt = read_excel(uploaded_file)
+        uploaded_file.seek(0)
+        return txt, pd.read_excel(uploaded_file), "Excel"
+        
+    # WORD
+    elif ext in ['docx', 'doc']:
+        uploaded_file.seek(0)
+        txt = read_word(uploaded_file)
+        return txt, txt, "Word"
         
     return None, None, "Inconnu"
 
-# --- 3. GESTION DU MODÈLE ---
-def get_model_name(key):
-    # On garde votre logique de sélection manuelle ou auto
-    # Ici, on simplifie pour pointer vers le modèle qui a marché pour vous
-    return "gemini-2.0-flash-exp" # Ou "models/gemini-1.5-flash" selon ce qui marche
-
 # --- 4. INTERFACE ---
-st.title("📂 Auditeur Universel (PDF, Excel, Images...)")
+st.title("📂 Auditeur Universel & Intelligent")
 
 with st.sidebar:
-    st.header("Paramètres")
+    st.header("Réglages")
     if api_key:
         st.success("✅ Clé connectée")
-        # Menu pour choisir le modèle (au cas où)
-        model_choice = st.selectbox(
-            "Modèle IA", 
-            ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro"],
-            index=1
+        
+        # LE MENU DÉROULANT DYNAMIQUE EST REVENU ICI
+        with st.spinner("Chargement de vos modèles..."):
+            my_models = get_my_models(api_key)
+            
+        selected_model = st.selectbox(
+            "Choisir le modèle IA :", 
+            my_models,
+            index=0,
+            help="Si l'un échoue, essayez le suivant (ex: flash-002 ou exp)"
         )
+        st.info(f"Modèle actif : `{selected_model}`")
     else:
         st.error("❌ Clé manquante")
 
 # --- 5. ZONES D'UPLOAD ---
 col1, col2 = st.columns(2)
-allowed_types = ["jpg", "png", "jpeg", "pdf", "xlsx", "docx"]
+# On accepte tout !
+allowed = ["jpg", "png", "jpeg", "pdf", "xlsx", "xls", "docx", "doc"]
 
-content1, preview1, type1 = None, None, None
-content2, preview2, type2 = None, None, None
+c1, p1, t1 = None, None, None
+c2, p2, t2 = None, None, None
 
 with col1:
     st.subheader("1. Référence")
-    f1 = st.file_uploader("Original", type=allowed_types, key="f1")
+    f1 = st.file_uploader("Original", type=allowed, key="u1")
     if f1:
-        with st.spinner("Lecture..."):
-            content1, preview1, type1 = process_file(f1)
-            st.caption(f"Format détecté : {type1}")
-            if type1 in ["Image", "PDF (Page 1 convertie)"]:
-                st.image(preview1, use_container_width=True)
-            elif type1 == "Excel":
-                st.dataframe(preview1, height=200)
-            else:
-                st.text_area("Aperçu texte", preview1, height=200)
+        c1, p1, t1 = process_file(f1)
+        st.caption(f"Format : {t1}")
+        if t1 == "Excel": st.dataframe(p1, height=200)
+        elif t1 == "Word": st.text_area("Aperçu", p1, height=200)
+        else: st.image(p1, use_container_width=True)
 
 with col2:
-    st.subheader("2. Comparaison")
-    f2 = st.file_uploader("A vérifier", type=allowed_types, key="f2")
+    st.subheader("2. A Vérifier")
+    f2 = st.file_uploader("Copie", type=allowed, key="u2")
     if f2:
-        with st.spinner("Lecture..."):
-            content2, preview2, type2 = process_file(f2)
-            st.caption(f"Format détecté : {type2}")
-            if type2 in ["Image", "PDF (Page 1 convertie)"]:
-                st.image(preview2, use_container_width=True)
-            elif type2 == "Excel":
-                st.dataframe(preview2, height=200)
-            else:
-                st.text_area("Aperçu texte", preview2, height=200)
+        c2, p2, t2 = process_file(f2)
+        st.caption(f"Format : {t2}")
+        if t2 == "Excel": st.dataframe(p2, height=200)
+        elif t2 == "Word": st.text_area("Aperçu", p2, height=200)
+        else: st.image(p2, use_container_width=True)
 
-# --- 6. ANALYSE ---
-if st.button("Lancer l'audit", type="primary"):
-    if not api_key or not content1 or not content2:
-        st.error("Documents manquants ou clé absente.")
+# --- 6. ANALYSE (PROMPT PARANOÏAQUE) ---
+if st.button("Lancer l'audit complet", type="primary"):
+    if not api_key or not c1 or not c2:
+        st.warning("Documents ou clé manquants.")
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(model_choice)
+            model = genai.GenerativeModel(selected_model)
             
-            with st.spinner("Analyse croisée des formats..."):
+            with st.spinner(f"Analyse minutieuse avec {selected_model}..."):
                 prompt = """
-                Agis comme un auditeur expert capable de lire tous les formats.
-                Compare le contenu du Document 1 et du Document 2.
+                Tu es un auditeur expert et maniaque.
+                Compare le Document 1 (Référence) et le Document 2 (A vérifier).
                 
-                ATTENTION : Les documents peuvent être de formats différents (ex: un PDF vs un Excel).
-                Concentre-toi sur le FOND (les données, prix, dates, textes) et ignore la FORME (mise en page).
+                RÈGLES D'OR :
+                1. Ignore la mise en forme (couleurs, polices), concentre-toi sur le FOND (Texte, Chiffres).
+                2. Traque CHAQUE différence : faute de frappe, ponctuation changée, chiffre modifié, ligne supprimée.
+                3. Si tu compares un PDF (Image) avec un Excel (Texte), fais le lien logique entre les données.
                 
-                Ta mission :
-                1. Repérer les écarts de valeurs (chiffres, prix).
-                2. Repérer les ajouts ou suppressions de texte.
-                3. Signaler les fautes ou incohérences.
-                
-                Réponds sous forme de tableau Markdown clair.
+                FORMAT DE RÉPONSE (Tableau Markdown) :
+                | Type | Valeur Doc 1 | Valeur Doc 2 | Correction à faire |
+                |------|--------------|--------------|--------------------|
+                | Prix | 45 €         | 48 €         | Remettre à 45 €    |
+                | Texte| Bonjour      | Bonsoir      | Corriger salutation|
                 """
                 
-                # Gemini est magique : on peut lui envoyer une Image ET du Texte dans la même requête
-                response = model.generate_content([prompt, content1, content2])
-                
-                st.success("Analyse terminée !")
+                response = model.generate_content([prompt, c1, c2])
+                st.success("Terminé !")
                 st.markdown(response.text)
                 
         except Exception as e:
             st.error(f"Erreur : {str(e)}")
-            if "429" in str(e):
-                st.warning("Quota dépassé. Essayez le modèle 'gemini-1.5-flash' dans le menu.")
+            st.markdown("👉 **Conseil :** Changez de modèle dans le menu à gauche (essayez un 'pro' ou 'flash-exp').")
